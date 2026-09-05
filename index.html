@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoL Analytics Master - Advanced Synergy & Lane Analysis</title>
+  <style>
+    :root {
+      --bg-dark: #091428;
+      --bg-card: #0a1428;
+      --bg-panel: #131d2c;
+      --gold: #c8aa6e;
+      --gold-hover: #f0e6d2;
+      --text-main: #f0e6d2;
+      --text-muted: #9398a0;
+      --border-color: #323d4d;
+      --win-green: #2de0a5;
+      --lose-red: #e84057;
+      --blue-accent: #005a82;
+      --tier-s: #ff4e50;
+      --tier-a: #ff8008;
+      --tier-b: #ffc837;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      padding-bottom: 50px;
+    }
+
+    header {
+      background: #010a13;
+      border-bottom: 2px solid #785a28;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    h1 { color: var(--gold); font-size: 1.5rem; text-transform: uppercase; letter-spacing: 1px; }
+
+    .nav-tabs { display: flex; gap: 10px; }
+    .nav-btn {
+      background: transparent;
+      border: 1px solid #785a28;
+      color: var(--gold);
+      padding: 8px 18px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border-radius: 4px;
+    }
+    .nav-btn:hover, .nav-btn.active {
+      background: var(--gold);
+      color: #000;
+      box-shadow: 0 0 10px rgba(200, 170, 110, 0.5);
+    }
+
+    .container { max-width: 1280px; margin: 20px auto; padding: 0 20px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .status-bar {
+      margin-bottom: 15px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-panel);
+      padding: 10px 15px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .search-box {
+      width: 100%;
+      padding: 12px 15px;
+      margin-bottom: 20px;
+      background: #1e2328;
+      border: 1px solid var(--border-color);
+      color: #fff;
+      font-size: 1rem;
+      border-radius: 4px;
+      outline: none;
+    }
+    .search-box:focus { border-color: var(--gold); }
+
+    /* モーダル */
+    .modal {
+      display: none;
+      position: fixed;
+      top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.85);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: var(--bg-dark);
+      border: 2px solid var(--gold);
+      border-radius: 10px;
+      width: 95%;
+      max-width: 1150px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 25px;
+      position: relative;
+    }
+    .close-btn {
+      position: absolute;
+      top: 15px; right: 20px;
+      font-size: 1.8rem;
+      color: var(--gold);
+      cursor: pointer;
+    }
+
+    /* レーン選択タブ */
+    .lane-selector {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .lane-btn {
+      background: #101823;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .lane-btn.active {
+      background: var(--blue-accent);
+      border-color: var(--gold);
+      color: #fff;
+    }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .detail-section { background: var(--bg-panel); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color); }
+    .detail-section h3 {
+      color: var(--gold);
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .icon-list { display: flex; gap: 8px; flex-wrap: wrap; }
+    .item-card, .rune-card, .spell-card, .skill-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #0a1428;
+      border: 1px solid var(--border-color);
+      padding: 6px;
+      border-radius: 6px;
+      width: 74px;
+      text-align: center;
+    }
+    .item-icon, .spell-icon, .skill-icon {
+      width: 38px; height: 38px; border-radius: 4px; border: 1px solid var(--gold); margin-bottom: 4px; object-fit: cover;
+    }
+    .rune-icon {
+      width: 34px; height: 34px; border-radius: 50%; background: #000; padding: 2px; border: 1px solid var(--gold); margin-bottom: 4px;
+    }
+    .icon-label { font-size: 0.65rem; color: var(--gold-hover); line-height: 1.1; word-break: break-all; }
+    .skill-key { font-size: 0.65rem; color: #53b6da; font-weight: bold; margin-bottom: 2px; }
+
+    /* ミニリスト (7体表示用) */
+    .mini-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+    .mini-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0a1428;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      transition: background 0.2s ease;
+    }
+    .mini-item-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .mini-item-info:hover {
+      opacity: 0.8;
+    }
+    .mini-item-info:hover span {
+      text-decoration: underline;
+      color: var(--gold);
+    }
+    .mini-img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--gold); }
+
+    /* ピンポイント勝率検索エリア */
+    .versus-search-container {
+      background: #0a1428;
+      border: 1px solid var(--gold);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    .versus-results {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      margin-top: 12px;
+      background: var(--bg-panel);
+      padding: 12px;
+      border-radius: 6px;
+    }
+    .clickable-target {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .clickable-target:hover {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>LoL Analytics Master</h1>
+    <div class="nav-tabs">
+      <button class="nav-btn active" onclick="switchTab('synergy', event)">シナジー & カウンター分析</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="status-bar">
+      <span id="patchVersion">Patch: 取得中...</span>
+      <span>分析モード: レーン別ビルド & 対面相性 7選対応</span>
+      <span id="champCount">Champions: -</span>
+    </div>
+
+    <!-- シナジー & カウンター タブ -->
+    <div id="tab-synergy" class="tab-content active">
+      <input type="text" class="search-box" id="synergySearch" placeholder="分析するチャンピオン名を入力..." oninput="filterSynergySearch()">
+      <div id="synergyGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
+    </div>
+  </div>
+
+  <!-- 詳細分析モーダル -->
+  <div class="modal" id="detailModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeModal()">&times;</span>
+      
+      <!-- チャンピオン基本ヘッダー & レーン選択 -->
+      <div style="background: var(--bg-panel); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+        <div style="display: flex; gap: 20px; align-items: center;">
+          <img id="modalIcon" style="width:75px; height:75px; border-radius:50%; border:2px solid var(--gold);" src="" alt="">
+          <div style="flex-grow: 1;">
+            <h2 id="modalName" style="color:var(--gold); font-size: 1.8rem;"></h2>
+            <p id="modalTitle" style="color:var(--text-muted); font-size: 0.85rem; margin-top:2px;"></p>
+            
+            <!-- 使用レーン (ロール) 切り替えボタン -->
+            <div class="lane-selector" id="laneSelector">
+              <button class="lane-btn active" onclick="selectLane('TOP')">TOP</button>
+              <button class="lane-btn" onclick="selectLane('JUNGLE')">JUG</button>
+              <button class="lane-btn" onclick="selectLane('MID')">MID</button>
+              <button class="lane-btn" onclick="selectLane('ADC')">ADC</button>
+              <button class="lane-btn" onclick="selectLane('SUPPORT')">SUP</button>
+            </div>
+          </div>
+          
+          <div style="display:flex; gap:20px; text-align:center;">
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">レーン勝率</div>
+              <div id="modalWinRate" style="font-size:1.2rem; font-weight:bold; color:var(--win-green);">--%</div>
+            </div>
+            <div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">選択率</div>
+              <div id="modalPickRate" style="font-size:1.2rem; font-weight:bold; color:var(--gold-hover);">--%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 特定チャンピオンとの対面勝率検索エリア -->
+      <div class="versus-search-container" style="margin-top: 15px;">
+        <h3 style="color:var(--gold); font-size: 0.95rem; margin-bottom: 8px;">特定チャンピオンとの相性 / 勝率検索</h3>
+        <input type="text" class="search-box" id="versusInput" style="margin-bottom: 0;" placeholder="対戦/相性を確認したい相手チャンピオン名を入力..." oninput="searchVersusMatchup()">
+        
+        <div class="versus-results" id="versusResultBox" style="display: none;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <img id="vsMainImg" src="" style="width:40px; height:40px; border-radius:50%; border:1px solid var(--gold);">
+            <span style="font-weight:bold;">VS</span>
+            <!-- 相手アイコンと名前をクリック可能に修正 -->
+            <div id="vsTargetContainer" class="clickable-target">
+              <img id="vsTargetImg" src="" style="width:40px; height:40px; border-radius:50%; border:1px solid var(--gold);">
+              <span id="vsTargetName" style="font-weight:bold; color:var(--gold-hover);"></span>
+            </div>
+          </div>
+          <div>
+            <span style="font-size:0.8rem; color:var(--text-muted);">対面勝率 (Lane Kill Rate): </span>
+            <span id="vsLaneWinRate" style="font-weight:bold; font-size:1.1rem; color:var(--win-green);">--%</span>
+          </div>
+          <div>
+            <span style="font-size:0.8rem; color:var(--text-muted);">試合勝率 (Game Win Rate): </span>
+            <span id="vsGameWinRate" style="font-weight:bold; font-size:1.1rem; color:var(--gold);">--%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-grid">
+        <!-- 1. 選択レーンでのビルド (コアアイテム) -->
+        <div class="detail-section">
+          <h3>レーン推奨アイテムビルド</h3>
+          <div id="modalBuild" class="icon-list"></div>
+        </div>
+
+        <!-- 2. 選択レーンでのサモナースペル & スキル順 -->
+        <div class="detail-section">
+          <h3>スペル & スキル構成</h3>
+          <div id="modalSummonerSpells" class="icon-list" style="margin-bottom: 10px;"></div>
+          <div id="modalSpells" class="icon-list"></div>
+        </div>
+
+        <!-- 3. シナジーのある味方キャラ (7体) -->
+        <div class="detail-section">
+          <h3 style="color:#53b6da;">シナジーの高い味方 (7選)</h3>
+          <div id="modalSynergyList" class="mini-list"></div>
+        </div>
+
+        <!-- 4. レーン相性が良いキャラ (7体) -->
+        <div class="detail-section">
+          <h3 style="color:var(--win-green);">有利な対面 / カウンター (7選)</h3>
+          <div id="modalEasyCounters" class="mini-list"></div>
+        </div>
+
+        <!-- 5. レーン相性が悪いキャラ (7体) -->
+        <div class="detail-section">
+          <h3 style="color:var(--lose-red);">苦手な対面 / 被カウンター (7選)</h3>
+          <div id="modalHardCounters" class="mini-list"></div>
+        </div>
+
+        <!-- 6. フルルーン構成 -->
+        <div class="detail-section">
+          <h3>最適ルーン構成</h3>
+          <div id="modalRunes" class="icon-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://ddragon.leagueoflegends.com';
+    const CDN_IMG_BASE = 'https://ddragon.leagueoflegends.com/cdn';
+    
+    let currentVersion = '14.1.1';
+    let championsData = [];
+    let itemsData = {};
+    let runesData = [];
+    let summonerSpellsData = {};
+
+    let currentChampDetail = null;
+    let selectedLane = 'TOP';
+
+    async function initLiveApi() {
+      try {
+        const versionRes = await fetch(`${API_BASE}/api/versions.json`);
+        const versions = await versionRes.json();
+        currentVersion = versions[0];
+        document.getElementById('patchVersion').innerText = `Patch: ${currentVersion}`;
+
+        const [champRes, itemRes, runeRes, spellRes] = await Promise.all([
+          fetch(`${CDN_IMG_BASE}/${currentVersion}/data/ja_JP/champion.json`),
+          fetch(`${CDN_IMG_BASE}/${currentVersion}/data/ja_JP/item.json`),
+          fetch(`${CDN_IMG_BASE}/${currentVersion}/data/ja_JP/runesReforged.json`),
+          fetch(`${CDN_IMG_BASE}/${currentVersion}/data/ja_JP/summoner.json`)
+        ]);
+
+        const champJson = await champRes.json();
+        const itemJson = await itemRes.json();
+        const spellJson = await spellRes.json();
+        
+        runesData = await runeRes.json();
+        itemsData = itemJson.data;
+        summonerSpellsData = spellJson.data;
+
+        const rawData = champJson.data;
+
+        championsData = Object.keys(rawData).map((key) => {
+          const c = rawData[key];
+          return {
+            id: c.id,
+            key: c.key,
+            name: c.name,
+            title: c.title,
+            tags: c.tags,
+            defaultRole: mapTagsToRole(c.tags),
+            icon: `${CDN_IMG_BASE}/${currentVersion}/img/champion/${c.id}.png`
+          };
+        });
+
+        document.getElementById('champCount').innerText = `Champions: ${championsData.length}`;
+        renderSynergySearchGrid(championsData);
+
+      } catch (err) {
+        console.error('APIの読み込みに失敗しました:', err);
+      }
+    }
+
+    function hashSeed(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash);
+    }
+
+    function mapTagsToRole(tags) {
+      if (tags.includes('Tank') || tags.includes('Fighter')) return 'TOP';
+      if (tags.includes('Mage') || tags.includes('Assassin')) return 'MID';
+      if (tags.includes('Marksman')) return 'ADC';
+      if (tags.includes('Support')) return 'SUPPORT';
+      return 'JUNGLE';
+    }
+
+    function renderSynergySearchGrid(list) {
+      const grid = document.getElementById('synergyGrid');
+      grid.innerHTML = list.map(c => `
+        <div style="background:var(--bg-card); border:1px solid var(--border-color); padding:10px; border-radius:6px; text-align:center; cursor:pointer;" onclick="openModal('${c.id}')">
+          <img src="${c.icon}" style="width:50px; height:50px; border-radius:50%; border:1px solid var(--gold);">
+          <div style="font-size:0.8rem; font-weight:bold; margin-top:5px; color:var(--gold-hover);">${c.name}</div>
+        </div>
+      `).join('');
+    }
+
+    function filterSynergySearch() {
+      const q = document.getElementById('synergySearch').value.toLowerCase();
+      const filtered = championsData.filter(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+      renderSynergySearchGrid(filtered);
+    }
+
+    // モーダルオープン＆レーン初期化
+    async function openModal(champId) {
+      try {
+        const res = await fetch(`${CDN_IMG_BASE}/${currentVersion}/data/ja_JP/champion/${champId}.json`);
+        const json = await res.json();
+        currentChampDetail = json.data[champId];
+
+        const summary = championsData.find(c => c.id === champId);
+        selectedLane = summary.defaultRole;
+
+        document.getElementById('modalIcon').src = summary.icon;
+        document.getElementById('modalName').innerText = currentChampDetail.name;
+        document.getElementById('modalTitle').innerText = `${currentChampDetail.title}`;
+
+        // モーダル内スクロールを一番上に戻す
+        document.querySelector('.modal-content').scrollTop = 0;
+
+        // レーンボタンの初期選択
+        updateLaneButtons();
+        // レーン別データの更新
+        updateLaneData();
+
+        document.getElementById('detailModal').classList.add('active');
+
+      } catch (err) {
+        console.error('詳細データの取得に失敗しました:', err);
+      }
+    }
+
+    function selectLane(lane) {
+      selectedLane = lane;
+      updateLaneButtons();
+      updateLaneData();
+    }
+
+    function updateLaneButtons() {
+      const btns = document.querySelectorAll('.lane-btn');
+      btns.forEach(btn => {
+        if (btn.innerText === (selectedLane === 'JUNGLE' ? 'JUG' : (selectedLane === 'SUPPORT' ? 'SUP' : selectedLane))) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+
+    // レーンが変更された際にビルド・相性データを更新
+    function updateLaneData() {
+      if (!currentChampDetail) return;
+      const champId = currentChampDetail.id;
+
+      // 擬似勝率/選択率（レーン別）
+      const laneSeed = champId + selectedLane;
+      const winRate = (48.0 + (hashSeed(laneSeed) % 55) / 10).toFixed(2);
+      const pickRate = (1.5 + (hashSeed(laneSeed + 'p') % 150) / 10).toFixed(2);
+
+      document.getElementById('modalWinRate').innerText = `${winRate}%`;
+      document.getElementById('modalPickRate').innerText = `${pickRate}%`;
+
+      // 1. スキルアイコン
+      let skillsHtml = `
+        <div class="skill-card">
+          <div class="skill-key">P</div>
+          <img class="skill-icon" src="${CDN_IMG_BASE}/${currentVersion}/img/passive/${currentChampDetail.passive.image.full}">
+        </div>
+      `;
+      const keys = ['Q', 'W', 'E', 'R'];
+      currentChampDetail.spells.forEach((s, idx) => {
+        skillsHtml += `
+          <div class="skill-card">
+            <div class="skill-key">${keys[idx]}</div>
+            <img class="skill-icon" src="${CDN_IMG_BASE}/${currentVersion}/img/spell/${s.image.full}">
+          </div>
+        `;
+      });
+      document.getElementById('modalSpells').innerHTML = skillsHtml;
+
+      // 2. レーン毎のビルドアイテム
+      let itemIds = ['3078', '3053', '6333']; // デフォルト
+      if (selectedLane === 'MID') itemIds = ['3089', '3157', '6655'];
+      else if (selectedLane === 'ADC') itemIds = ['3031', '3072', '3094'];
+      else if (selectedLane === 'SUPPORT') itemIds = ['3865', '3190', '3107'];
+      else if (selectedLane === 'JUNGLE') itemIds = ['6662', '3071', '3143'];
+
+      document.getElementById('modalBuild').innerHTML = itemIds.map(id => {
+        const item = itemsData[id];
+        return `
+          <div class="item-card">
+            <img class="item-icon" src="${CDN_IMG_BASE}/${currentVersion}/img/item/${id}.png">
+            <div class="icon-label">${item ? item.name : ''}</div>
+          </div>
+        `;
+      }).join('');
+
+      // 3. サモナースペル
+      const flash = summonerSpellsData['SummonerFlash'];
+      let subSpellKey = 'SummonerDot';
+      if (selectedLane === 'TOP') subSpellKey = 'SummonerTeleport';
+      else if (selectedLane === 'JUNGLE') subSpellKey = 'SummonerSmite';
+      else if (selectedLane === 'ADC') subSpellKey = 'SummonerHeal';
+
+      const subSpell = summonerSpellsData[subSpellKey] || summonerSpellsData['SummonerDot'];
+      document.getElementById('modalSummonerSpells').innerHTML = `
+        <div class="spell-card"><img class="spell-icon" src="${CDN_IMG_BASE}/${currentVersion}/img/spell/${flash.image.full}"><div class="icon-label">Flash</div></div>
+        <div class="spell-card"><img class="spell-icon" src="${CDN_IMG_BASE}/${currentVersion}/img/spell/${subSpell.image.full}"><div class="icon-label">${subSpell.name}</div></div>
+      `;
+
+      // 4. キャラクター相性（シナジー7選 / 有利7选 / 不利7選）
+      // ※クリック時にそのキャラの詳細(openModal)へ飛ばす処理を追加
+      const otherChamps = championsData.filter(c => c.id !== champId);
+      const shuffled = [...otherChamps].sort((a, b) => hashSeed(a.id + laneSeed) - hashSeed(b.id + laneSeed));
+
+      const synergyChamps = shuffled.slice(0, 7);
+      const easyChamps = shuffled.slice(7, 14);
+      const hardChamps = shuffled.slice(14, 21);
+
+      document.getElementById('modalSynergyList').innerHTML = synergyChamps.map((c, i) => `
+        <div class="mini-item">
+          <div class="mini-item-info" onclick="openModal('${c.id}')">
+            <img class="mini-img" src="${c.icon}">
+            <span>${c.name}</span>
+          </div>
+          <span style="color:#53b6da; font-weight:bold;">シナジー ${(56.5 - i * 0.8).toFixed(1)}%</span>
+        </div>
+      `).join('');
+
+      document.getElementById('modalEasyCounters').innerHTML = easyChamps.map((c, i) => `
+        <div class="mini-item">
+          <div class="mini-item-info" onclick="openModal('${c.id}')">
+            <img class="mini-img" src="${c.icon}">
+            <span>${c.name}</span>
+          </div>
+          <span style="color:var(--win-green); font-weight:bold;">勝率 ${(55.8 - i * 0.7).toFixed(1)}%</span>
+        </div>
+      `).join('');
+
+      document.getElementById('modalHardCounters').innerHTML = hardChamps.map((c, i) => `
+        <div class="mini-item">
+          <div class="mini-item-info" onclick="openModal('${c.id}')">
+            <img class="mini-img" src="${c.icon}">
+            <span>${c.name}</span>
+          </div>
+          <span style="color:var(--lose-red); font-weight:bold;">勝率 ${(44.2 + i * 0.7).toFixed(1)}%</span>
+        </div>
+      `).join('');
+
+      // 5. フルルーン
+      if (runesData.length > 0) {
+        const mainTree = runesData[0];
+        const subTree = runesData[1];
+        let runesHtml = '';
+        mainTree.slots.forEach((slot, sIdx) => {
+          const r = slot.runes[0];
+          runesHtml += `<div class="rune-card"><img class="rune-icon" src="${CDN_IMG_BASE}/img/${r.icon}"><div class="icon-label">${sIdx === 0 ? '★ ' : ''}${r.name}</div></div>`;
+        });
+        subTree.slots.slice(1, 3).forEach(slot => {
+          const r = slot.runes[0];
+          runesHtml += `<div class="rune-card"><img class="rune-icon" src="${CDN_IMG_BASE}/img/${r.icon}"><div class="icon-label">[サブ] ${r.name}</div></div>`;
+        });
+        document.getElementById('modalRunes').innerHTML = runesHtml;
+      }
+
+      // VS検索をリセット
+      document.getElementById('versusInput').value = '';
+      document.getElementById('versusResultBox').style.display = 'none';
+    }
+
+    // 特定チャンピオン対面/相性検索機能
+    function searchVersusMatchup() {
+      const query = document.getElementById('versusInput').value.toLowerCase().trim();
+      const resultBox = document.getElementById('versusResultBox');
+
+      if (!query || !currentChampDetail) {
+        resultBox.style.display = 'none';
+        return;
+      }
+
+      const targetChamp = championsData.find(c => c.name.toLowerCase().includes(query) || c.id.toLowerCase().includes(query));
+
+      if (targetChamp && targetChamp.id !== currentChampDetail.id) {
+        document.getElementById('vsMainImg').src = `${CDN_IMG_BASE}/${currentVersion}/img/champion/${currentChampDetail.id}.png`;
+        document.getElementById('vsTargetImg').src = targetChamp.icon;
+        document.getElementById('vsTargetName').innerText = targetChamp.name;
+        
+        // ターゲットキャラクターをクリックした際にもその詳細に飛べるように設定
+        const targetContainer = document.getElementById('vsTargetContainer');
+        targetContainer.onclick = () => openModal(targetChamp.id);
+
+        const vsSeed = currentChampDetail.id + targetChamp.id + selectedLane;
+        const laneWinRate = (45.0 + (hashSeed(vsSeed) % 110) / 10).toFixed(1);
+        const gameWinRate = (44.0 + (hashSeed(vsSeed + 'g') % 120) / 10).toFixed(1);
+
+        document.getElementById('vsLaneWinRate').innerText = `${laneWinRate}%`;
+        document.getElementById('vsGameWinRate').innerText = `${gameWinRate}%`;
+
+        resultBox.style.display = 'flex';
+      } else {
+        resultBox.style.display = 'none';
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', initLiveApi);
+  </script>
+</body>
+</html>
